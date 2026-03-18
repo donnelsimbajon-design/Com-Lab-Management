@@ -1,65 +1,141 @@
-import Image from "next/image";
+"use client";
 
-export default function Home() {
+import { useState } from "react";
+import { useRouter } from "next/navigation";
+import { useAuthStore } from "@/lib/auth-store";
+import { LoginHero } from "@/components/features/auth/login-hero";
+import { User, Lock, EyeOff, Eye, ArrowRight } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
+import { toast } from "sonner";
+
+export default function LoginPage() {
+  const router = useRouter();
+  const login = useAuthStore((s) => s.login);
+  const [schoolId, setSchoolId] = useState("");
+  const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [loading, setLoading] = useState(false);
+
+  const handleLogin = async () => {
+    if (!schoolId || !password) {
+      toast.error("Please enter your ID number and password.");
+      return;
+    }
+    setLoading(true);
+    // Simulate network delay
+    await new Promise((res) => setTimeout(res, 600));
+
+    const user = login(schoolId, password);
+    if (user) {
+      toast.success(`Welcome back, ${user.name}!`);
+      // Redirect based on role
+      const routes: Record<string, string> = {
+        student: "/student",
+        teacher: "/teacher",
+        sa: "/sa",
+        admin: "/admin",
+      };
+      router.push(routes[user.role] || "/student");
+    } else {
+      toast.error("Invalid credentials. Please check your ID and password.");
+    }
+    setLoading(false);
+  };
+
   return (
-    <div className="flex min-h-screen items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex min-h-screen w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
+    <div className="min-h-screen grid lg:grid-cols-2">
+      {/* Left Side — Hero */}
+      <LoginHero />
+
+      {/* Right Side — Form */}
+      <div className="flex items-center justify-center p-8 bg-white">
+        <div className="w-full max-w-sm mx-auto space-y-8">
+          <div className="text-center sm:text-left space-y-2">
+            <h2 className="text-3xl font-bold tracking-tight text-gray-900">Sign In</h2>
+            <p className="text-sm text-gray-500 font-medium">Welcome back to ComLab Connect.</p>
+          </div>
+
+          <div className="space-y-6 pt-2">
+            <div className="space-y-2">
+              <Label htmlFor="idNumber" className="text-[11px] font-bold text-gray-500 uppercase tracking-wider">ID Number</Label>
+              <div className="relative group">
+                <User className="absolute left-3.5 top-3 h-5 w-5 text-gray-400 group-focus-within:text-blue-600 transition-colors" />
+                <Input
+                  id="idNumber"
+                  placeholder="e.g. 2021-0452"
+                  value={schoolId}
+                  onChange={(e) => setSchoolId(e.target.value)}
+                  className="pl-11 h-12 bg-white border-gray-200 shadow-sm rounded-xl focus-visible:ring-blue-600 focus-visible:border-blue-600 transition-all text-md"
+                />
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <Label htmlFor="password" className="text-[11px] font-bold text-gray-500 uppercase tracking-wider">Password</Label>
+                <span className="text-[10px] text-gray-400 font-medium tracking-wide">Format: MMDDYYYY</span>
+              </div>
+              <div className="relative group">
+                <Lock className="absolute left-3.5 top-3 h-5 w-5 text-gray-400 group-focus-within:text-blue-600 transition-colors" />
+                <Input
+                  id="password"
+                  type={showPassword ? "text" : "password"}
+                  placeholder="Birth Date (MMDDYYYY)"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && handleLogin()}
+                  className="pl-11 pr-11 h-12 bg-white border-gray-200 shadow-sm rounded-xl focus-visible:ring-blue-600 focus-visible:border-blue-600 transition-all text-md font-mono"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-3.5 top-3 text-gray-400 hover:text-gray-600 focus:outline-none rounded-sm transition-colors"
+                >
+                  {showPassword ? <Eye className="h-5 w-5" /> : <EyeOff className="h-5 w-5" />}
+                </button>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-between pt-1">
+              <div className="flex items-center space-x-2">
+                <Checkbox id="remember" className="rounded-md border-gray-300 data-[state=checked]:bg-blue-600 data-[state=checked]:border-blue-600 shadow-sm" />
+                <label htmlFor="remember" className="text-sm font-medium leading-none text-gray-600 cursor-pointer select-none">
+                  Remember me
+                </label>
+              </div>
+            </div>
+
+            <Button
+              onClick={handleLogin}
+              disabled={loading}
+              className="bg-[#1e40af] hover:bg-blue-800 text-white w-full h-12 rounded-xl font-semibold flex items-center justify-center gap-2 group shadow-[0_8px_30px_rgb(30,64,175,0.2)] hover:shadow-[0_8px_30px_rgb(30,64,175,0.3)] transition-all duration-300 mt-4 disabled:opacity-50"
             >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
+              {loading ? (
+                <span className="animate-spin h-5 w-5 border-2 border-white/30 border-t-white rounded-full" />
+              ) : (
+                <>
+                  <span>Sign In to Portal</span>
+                  <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
+                </>
+              )}
+            </Button>
+
+            {/* Demo accounts hint */}
+            <div className="mt-6 p-4 bg-gray-50 rounded-xl border border-gray-100">
+              <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-3">Demo Accounts</p>
+              <div className="space-y-1.5 text-[11px] font-medium text-gray-500">
+                <p><span className="font-bold text-gray-700">Student:</span> 2021-0452 / 01152003</p>
+                <p><span className="font-bold text-gray-700">Teacher:</span> 2015-0010 / 06101980</p>
+                <p><span className="font-bold text-gray-700">SA:</span> 2020-0300 / 11202001</p>
+                <p><span className="font-bold text-gray-700">Admin:</span> ADMIN-001 / 01011990</p>
+              </div>
+            </div>
+          </div>
         </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
-        </div>
-      </main>
+      </div>
     </div>
   );
 }
