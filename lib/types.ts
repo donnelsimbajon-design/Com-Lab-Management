@@ -33,6 +33,24 @@ export interface Booking {
   createdAt: string;
 }
 
+export type AuditAction =
+  | 'LOGIN_SUCCESS' | 'LOGIN_FAILED' | 'LOGOUT'
+  | 'UNAUTHORIZED_ACCESS' | 'EQUIPMENT_ADDED' | 'EQUIPMENT_UPDATED' | 'EQUIPMENT_DELETED'
+  | 'BOOKING_CREATED' | 'BOOKING_APPROVED' | 'BOOKING_DENIED'
+  | 'TICKET_CREATED' | 'TICKET_RESOLVED' | 'TICKET_ESCALATED'
+  | 'USER_CREATED' | 'USER_UPDATED' | 'USER_DELETED'
+  | 'SOFTWARE_REQUESTED' | 'SOFTWARE_APPROVED' | 'SOFTWARE_DENIED'
+  | 'SETTING_UPDATED';
+
+export type Permission =
+  | 'inventory:read' | 'inventory:create' | 'inventory:update' | 'inventory:delete'
+  | 'booking:create' | 'booking:approve' | 'booking:view'
+  | 'ticket:create' | 'ticket:update' | 'ticket:view'
+  | 'report:create' | 'report:view'
+  | 'software:request' | 'software:approve' | 'software:view'
+  | 'user:create' | 'user:update' | 'user:delete' | 'user:view'
+  | 'settings:update';
+
 export type TicketPriority = 'high' | 'medium' | 'low';
 export type TicketStatus = 'open' | 'in-progress' | 'resolved';
 export type TicketType = 'incident' | 'lost-item' | 'hardware' | 'software';
@@ -75,4 +93,22 @@ export interface Lab {
   totalUnits: number;
   occupiedUnits: number;
   status: 'available' | 'occupied' | 'maintenance';
+}
+
+export interface Schedule {
+  id: string;
+  teacherId: string;
+  subject: string;
+  time: string;
+  lab: string;
+  day: string;
+  status: 'ongoing' | 'upcoming' | 'completed';
+}
+
+export interface SystemSetting {
+  id: string;
+  key: string;
+  value: string;
+  category: string;
+  updatedAt: string;
 }

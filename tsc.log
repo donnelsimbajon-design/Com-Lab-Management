@@ -1,0 +1,4 @@
+﻿app/(admin)/admin/settings/SystemSettings.tsx(18,39): error TS2345: Argument of type '"settings:update"' is not assignable to parameter of type 'Permission'.
+app/(admin)/admin/settings/SystemSettings.tsx(25,14): error TS2345: Argument of type '"SETTING_UPDATED"' is not assignable to parameter of type 'AuditAction'.
+lib/security/validation.ts(55,26): error TS2339: Property 'errors' does not exist on type 'ZodError<T>'.
+lib/security/validation.ts(55,38): error TS7006: Parameter 'e' implicitly has an 'any' type.

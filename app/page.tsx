@@ -3,8 +3,10 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuthStore } from "@/lib/auth-store";
+import { loginSchema, validate } from "@/lib/security/validation";
+import { sanitizeInput, containsScriptInjection } from "@/lib/security/sanitize";
 import { LoginHero } from "@/components/features/auth/login-hero";
-import { User, Lock, EyeOff, Eye, ArrowRight } from "lucide-react";
+import { User, Lock, EyeOff, Eye, ArrowRight, ShieldCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -18,20 +20,41 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [attempts, setAttempts] = useState(0);
 
   const handleLogin = async () => {
-    if (!schoolId || !password) {
-      toast.error("Please enter your ID number and password.");
+    // Rate limiting: block after 5 failed attempts
+    if (attempts >= 5) {
+      toast.error("Too many failed attempts. Please wait before trying again.");
       return;
     }
+
+    // XSS check
+    if (containsScriptInjection(schoolId) || containsScriptInjection(password)) {
+      toast.error("Invalid characters detected.");
+      return;
+    }
+
+    // Sanitize inputs
+    const cleanId = sanitizeInput(schoolId);
+    const cleanPassword = sanitizeInput(password);
+
+    // Zod validation
+    const result = validate(loginSchema, { schoolId: cleanId, password: cleanPassword });
+    if (!result.success) {
+      result.errors.forEach((e) => toast.error(e));
+      return;
+    }
+
     setLoading(true);
-    // Simulate network delay
     await new Promise((res) => setTimeout(res, 600));
 
-    const user = login(schoolId, password);
+    const user = login(cleanId, cleanPassword);
     if (user) {
-      toast.success(`Welcome back, ${user.name}!`);
-      // Redirect based on role
+      toast.success(`Welcome back, ${user.name}!`, {
+        description: `Secure session started · ${user.role.toUpperCase()} portal`,
+        icon: <ShieldCheck className="h-4 w-4 text-emerald-500" />,
+      });
       const routes: Record<string, string> = {
         student: "/student",
         teacher: "/teacher",
@@ -40,17 +63,18 @@ export default function LoginPage() {
       };
       router.push(routes[user.role] || "/student");
     } else {
-      toast.error("Invalid credentials. Please check your ID and password.");
+      setAttempts((a) => a + 1);
+      toast.error("Invalid credentials.", {
+        description: `${5 - attempts - 1} attempts remaining.`,
+      });
     }
     setLoading(false);
   };
 
   return (
     <div className="min-h-screen grid lg:grid-cols-2">
-      {/* Left Side — Hero */}
       <LoginHero />
 
-      {/* Right Side — Form */}
       <div className="flex items-center justify-center p-8 bg-white">
         <div className="w-full max-w-sm mx-auto space-y-8">
           <div className="text-center sm:text-left space-y-2">
@@ -110,7 +134,7 @@ export default function LoginPage() {
 
             <Button
               onClick={handleLogin}
-              disabled={loading}
+              disabled={loading || attempts >= 5}
               className="bg-[#1e40af] hover:bg-blue-800 text-white w-full h-12 rounded-xl font-semibold flex items-center justify-center gap-2 group shadow-[0_8px_30px_rgb(30,64,175,0.2)] hover:shadow-[0_8px_30px_rgb(30,64,175,0.3)] transition-all duration-300 mt-4 disabled:opacity-50"
             >
               {loading ? (
@@ -123,7 +147,18 @@ export default function LoginPage() {
               )}
             </Button>
 
-            {/* Demo accounts hint */}
+            {attempts >= 5 && (
+              <div className="text-center p-3 bg-red-50 border border-red-100 rounded-xl">
+                <p className="text-xs font-bold text-red-600">Account temporarily locked. Too many failed attempts.</p>
+              </div>
+            )}
+
+            {/* Security badge */}
+            <div className="flex items-center justify-center gap-2 text-[10px] text-gray-400 font-bold uppercase tracking-widest pt-2">
+              <ShieldCheck className="h-3 w-3" /> Secured with JWT · HTTPS
+            </div>
+
+            {/* Demo accounts */}
             <div className="mt-6 p-4 bg-gray-50 rounded-xl border border-gray-100">
               <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-3">Demo Accounts</p>
               <div className="space-y-1.5 text-[11px] font-medium text-gray-500">

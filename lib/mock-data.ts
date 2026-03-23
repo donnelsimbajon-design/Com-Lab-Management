@@ -1,4 +1,4 @@
-import { User, Equipment, Booking, Ticket, SoftwareRequest, Report, Lab } from './types';
+import { User, Equipment, Booking, Ticket, SoftwareRequest, Report, Lab, Schedule, SystemSetting } from './types';
 
 // ── USERS ──
 export const MOCK_USERS: User[] = [
@@ -60,4 +60,22 @@ export const MOCK_LABS: Lab[] = [
   { id: 'l7', name: 'Research Hub', location: 'Library Bldg', totalUnits: 15, occupiedUnits: 2, status: 'available' },
   { id: 'l8', name: 'Software Dev Lab', location: 'Main Bldg, 4th Floor', totalUnits: 30, occupiedUnits: 22, status: 'occupied' },
   { id: 'l9', name: 'IoT Lab', location: 'Tech Bldg, 2nd Floor', totalUnits: 15, occupiedUnits: 5, status: 'available' },
+];
+
+// ── SCHEDULES ──
+export const MOCK_SCHEDULES: Schedule[] = [
+  { id: 'sc1', teacherId: 'u3', subject: 'CS101 - Introduction to Computing', time: '09:00 AM - 11:30 AM', lab: 'Lab 302', day: 'MWF', status: 'ongoing' },
+  { id: 'sc2', teacherId: 'u3', subject: 'IT204 - Database Systems', time: '01:00 PM - 03:30 PM', lab: 'Lab 101', day: 'MWF', status: 'upcoming' },
+  { id: 'sc3', teacherId: 'u4', subject: 'CS202 - Data Structures', time: '08:00 AM - 10:00 AM', lab: 'Lab 201', day: 'TTH', status: 'upcoming' },
+  { id: 'sc4', teacherId: 'u4', subject: 'IT301 - Web Development', time: '10:30 AM - 12:30 PM', lab: 'Lab 302', day: 'TTH', status: 'upcoming' },
+];
+
+// ── SYSTEM SETTINGS ──
+export const MOCK_SETTINGS: SystemSetting[] = [
+  { id: 'set1', key: 'session_timeout', value: '30', category: 'Security', updatedAt: '2025-10-20' },
+  { id: 'set2', key: 'max_borrow_days', value: '7', category: 'Booking', updatedAt: '2025-10-20' },
+  { id: 'set3', key: 'max_login_attempts', value: '5', category: 'Security', updatedAt: '2025-10-20' },
+  { id: 'set4', key: 'maintenance_mode', value: 'false', category: 'System', updatedAt: '2025-10-20' },
+  { id: 'set5', key: 'notification_email', value: 'admin@fsuu.edu', category: 'Notifications', updatedAt: '2025-10-20' },
+  { id: 'set6', key: 'auto_approve_bookings', value: 'false', category: 'Booking', updatedAt: '2025-10-20' },
 ];
