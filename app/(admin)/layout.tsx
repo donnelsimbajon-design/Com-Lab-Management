@@ -1,11 +1,11 @@
 "use client";
 
-import React from 'react';
+import React, { useState } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useAuthStore } from '@/lib/auth-store';
 import { AuthGuard } from '@/components/auth-guard';
-import { LayoutDashboard, Users2, Monitor, Activity, ShieldCheck, Settings, Bot, LogOut, Shield } from 'lucide-react';
+import { LayoutDashboard, Users2, Monitor, Activity, ShieldCheck, Settings, ClipboardList, Bot, LogOut, Shield, ChevronDown, UserCheck, Clock } from 'lucide-react';
 
 function AdminLayoutInner({ children }: { children: React.ReactNode }) {
   const router = useRouter();
@@ -17,14 +17,28 @@ function AdminLayoutInner({ children }: { children: React.ReactNode }) {
   const handleLogout = () => { logout(); router.push('/'); };
   const initials = currentUser?.name?.split(' ').map((n) => n[0]).join('') || 'AD';
 
+  const [saDropdownOpen, setSaDropdownOpen] = useState(
+    pathname.startsWith('/admin/sa-management')
+  );
+
   const navigation = [
     { name: 'Dashboard', href: '/admin/dashboard', icon: LayoutDashboard },
     { name: 'User Management', href: '/admin/users', icon: Users2 },
+  ];
+
+  const saSubNav = [
+    { name: 'S.A. Assign Lab', href: '/admin/sa-management/assign', icon: UserCheck },
+    { name: 'S.A. Duty', href: '/admin/sa-management/duty', icon: Clock },
+  ];
+
+  const bottomNav = [
     { name: 'Inventory Control', href: '/admin/inventory', icon: Monitor },
     { name: 'System Analytics', href: '/admin/analytics', icon: Activity },
     { name: 'Audit Logs', href: '/admin/audit', icon: ShieldCheck },
     { name: 'System Settings', href: '/admin/settings', icon: Settings },
   ];
+
+  const isSAActive = pathname.startsWith('/admin/sa-management');
 
   return (
     <div className="min-h-screen bg-gray-50/20 flex font-sans">
@@ -37,7 +51,62 @@ function AdminLayoutInner({ children }: { children: React.ReactNode }) {
         </div>
         <div className="flex-1 py-8 flex flex-col gap-1 px-3">
           <p className="px-5 text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-2">Global Settings</p>
+          
+          {/* Top nav items */}
           {navigation.map((item) => {
+            const Icon = item.icon;
+            const isActive = pathname.startsWith(item.href);
+            return (
+              <Link
+                key={item.href}
+                href={item.href}
+                className={`flex items-center gap-3 px-4 py-3 mx-2 rounded-xl text-sm font-semibold transition-all duration-200 ${
+                  isActive ? 'bg-blue-600/10 text-blue-400 shadow-[inset_0_1px_0_0_rgba(255,255,255,0.05)]' : 'text-gray-400 hover:bg-[#1f2937] hover:text-gray-100'
+                }`}
+              >
+                <Icon className={`h-4 w-4 ${isActive ? 'text-blue-400' : 'text-gray-500'}`} />
+                {item.name}
+              </Link>
+            );
+          })}
+
+          {/* S.A. Management Dropdown */}
+          <button
+            onClick={() => setSaDropdownOpen(!saDropdownOpen)}
+            className={`flex items-center justify-between px-4 py-3 mx-2 rounded-xl text-sm font-semibold transition-all duration-200 ${
+              isSAActive ? 'bg-blue-600/10 text-blue-400' : 'text-gray-400 hover:bg-[#1f2937] hover:text-gray-100'
+            }`}
+          >
+            <div className="flex items-center gap-3">
+              <ClipboardList className={`h-4 w-4 ${isSAActive ? 'text-blue-400' : 'text-gray-500'}`} />
+              S.A. Management
+            </div>
+            <ChevronDown className={`h-3.5 w-3.5 transition-transform duration-200 ${saDropdownOpen ? 'rotate-180' : ''}`} />
+          </button>
+          
+          {saDropdownOpen && (
+            <div className="ml-4 space-y-0.5 animate-in slide-in-from-top duration-200">
+              {saSubNav.map((item) => {
+                const Icon = item.icon;
+                const isActive = pathname === item.href;
+                return (
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    className={`flex items-center gap-3 px-4 py-2.5 mx-2 rounded-lg text-[13px] font-medium transition-all duration-200 ${
+                      isActive ? 'bg-blue-600/10 text-blue-400' : 'text-gray-500 hover:bg-[#1f2937] hover:text-gray-200'
+                    }`}
+                  >
+                    <Icon className={`h-3.5 w-3.5 ${isActive ? 'text-blue-400' : 'text-gray-600'}`} />
+                    {item.name}
+                  </Link>
+                );
+              })}
+            </div>
+          )}
+
+          {/* Bottom nav items */}
+          {bottomNav.map((item) => {
             const Icon = item.icon;
             const isActive = pathname.startsWith(item.href);
             return (

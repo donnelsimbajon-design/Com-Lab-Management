@@ -30,13 +30,15 @@ export default function LabReports() {
   const [desc, setDesc] = useState('');
   const [priority, setPriority] = useState<'high' | 'medium' | 'low'>('medium');
 
-  const handleSubmit = () => {
+  const submitTeacherLabReport = useAppStore((s) => s.submitTeacherLabReport);
+
+  const handleSubmit = async () => {
     if (containsScriptInjection(title) || containsScriptInjection(desc)) { toast.error('Invalid input.'); return; }
     const safe = { title: sanitizeInput(title), desc: sanitizeInput(desc), lab: sanitizeInput(selectedLabName) };
     if (!safe.title || safe.title.length < 3) { toast.error('Title min 3 chars.'); return; }
     if (!selectedLabId || !safe.lab) { toast.error('Lab selection is required.'); return; }
     
-    // We send report linked to the selected lab
+    // Existing ticket + report
     createTicket({ 
       userId, 
       type: 'incident', 
@@ -48,6 +50,17 @@ export default function LabReports() {
     });
     
     createReport({ teacherId: userId, title: safe.title, description: safe.desc });
+
+    // New: persist teacher lab report with SA on duty tracking
+    await submitTeacherLabReport({
+      teacherId: userId,
+      teacherName: currentUser?.name || 'Unknown Teacher',
+      labId: selectedLabId,
+      labName: `Laboratory ${selectedLabId}`,
+      title: safe.title,
+      description: safe.desc || 'No details.',
+    });
+
     logAudit('REPORT_SUBMITTED', userId, currentUser?.name || '', currentUser?.role || '', `Report: ${safe.title}`);
     
     toast.success('Report submitted successfully!');

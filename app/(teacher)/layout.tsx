@@ -4,6 +4,7 @@ import React from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useAuthStore } from '@/lib/auth-store';
+import { useAppStore } from '@/lib/store';
 import { AuthGuard } from '@/components/auth-guard';
 import { LayoutDashboard, Users, ClipboardList, Bell, Bot, LogOut, Shield } from 'lucide-react';
 
@@ -14,6 +15,9 @@ function TeacherLayoutInner({ children }: { children: React.ReactNode }) {
   const sessionMinutes = useAuthStore((s) => s.sessionMinutes);
   const logout = useAuthStore((s) => s.logout);
 
+  const notifications = useAppStore((s) => s.notifications);
+  const unreadCount = notifications.filter((n) => n.userId === currentUser?.id && !n.isRead).length;
+
   const handleLogout = () => { logout(); router.push('/'); };
   const initials = currentUser?.name?.split(' ').map((n) => n[0]).join('') || 'TR';
 
@@ -22,6 +26,7 @@ function TeacherLayoutInner({ children }: { children: React.ReactNode }) {
     { name: 'Class Schedules', href: '/teacher/schedules', icon: Users },
     { name: 'Lab Reports', href: '/teacher/reports', icon: ClipboardList },
     { name: 'Software Requests', href: '/teacher/software', icon: Bell },
+    { name: 'Notifications', href: '/teacher/notifications', icon: Bell, badge: unreadCount },
   ];
 
   return (
@@ -42,11 +47,18 @@ function TeacherLayoutInner({ children }: { children: React.ReactNode }) {
               <Link
                 key={item.href}
                 href={item.href}
-                className={`flex items-center gap-3 px-4 py-3 rounded-xl font-medium transition-colors ${isActive ? 'bg-amber-50 text-amber-600 font-semibold' : 'text-gray-500 hover:text-gray-900 hover:bg-gray-50'
+                className={`flex items-center justify-between px-4 py-3 rounded-xl font-medium transition-colors ${isActive ? 'bg-amber-50 text-amber-600 font-semibold' : 'text-gray-500 hover:text-gray-900 hover:bg-gray-50'
                   }`}
               >
-                <Icon className="h-5 w-5" />
-                <span className="text-sm">{item.name}</span>
+                <div className="flex items-center gap-3">
+                  <Icon className="h-5 w-5" />
+                  <span className="text-sm">{item.name}</span>
+                </div>
+                {item.badge !== undefined && item.badge > 0 && (
+                  <span className="bg-red-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full">
+                    {item.badge}
+                  </span>
+                )}
               </Link>
             );
           })}

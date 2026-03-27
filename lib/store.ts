@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import {
   User, Equipment, Booking, Ticket, SoftwareRequest, Report, Lab, Schedule, SystemSetting,
-  OpenLabSlot, SALabPermission, LabVisit,
+  OpenLabSlot, SALabPermission, LabVisit, SAAssignment, SAAssignmentHistory, TeacherLabReport, AppNotification,
   BookingStatus, TicketStatus, EquipmentStatus, SoftwareRequestStatus,
 } from './types';
 import { supabase } from './supabase';
@@ -24,6 +24,10 @@ export interface AppState {
   openLabSlots: OpenLabSlot[];
   saLabPermissions: SALabPermission[];
   labVisits: LabVisit[];
+  saAssignments: SAAssignment[];
+  saAssignmentHistory: SAAssignmentHistory[];
+  teacherLabReports: TeacherLabReport[];
+  notifications: AppNotification[];
 
   // Loading & Init
   isLoading: boolean;
@@ -79,6 +83,19 @@ export interface AppState {
   enterLab: (userId: string, userName: string, userRole: string, labId: number) => string;
   leaveLab: (visitId: string) => void;
   getActiveVisit: (userId: string, labId: number) => LabVisit | undefined;
+
+  // ── SA Assignments ──
+  assignSA: (saId: string, saName: string, labIds: number[], adminId: string) => Promise<void>;
+  removeSAAssignment: (saId: string, adminId: string) => Promise<void>;
+  getSAForLab: (labId: number) => SAAssignment | undefined;
+
+  // ── Teacher Lab Reports ──
+  submitTeacherLabReport: (report: Omit<TeacherLabReport, 'id' | 'submittedAt' | 'saId' | 'saName'>) => Promise<string>;
+
+  // ── Notifications ──
+  createNotification: (userId: string, title: string, message: string, type: string, relatedTicketId?: string) => Promise<void>;
+  markNotificationRead: (id: string) => Promise<void>;
+  markAllNotificationsRead: (userId: string) => Promise<void>;
 }
 
 // ── Mapper helpers: DB row → App type ──
@@ -186,8 +203,16 @@ export const useAppStore = create<AppState>((set, get) => ({
   openLabSlots: [],
   saLabPermissions: [],
   labVisits: [],
+  saAssignments: [],
+  saAssignmentHistory: [],
+  teacherLabReports: [],
+  notifications: [],
   isLoading: false,
   initialized: false,
+
+  createNotification: async () => {},
+  markNotificationRead: async () => {},
+  markAllNotificationsRead: async () => {},
 
   setLoading: (v) => set({ isLoading: v }),
 
@@ -208,6 +233,10 @@ export const useAppStore = create<AppState>((set, get) => ({
         labVisitsRes,
         openLabSlotsRes,
         saLabPermsRes,
+        saAssignRes,
+        saHistoryRes,
+        teacherReportsRes,
+        notificationsRes,
       ] = await Promise.all([
         supabase.from('profiles').select('*'),
         supabase.from('inventory').select('*'),
@@ -220,18 +249,22 @@ export const useAppStore = create<AppState>((set, get) => ({
         supabase.from('lab_visits').select('*').order('entered_at', { ascending: false }),
         supabase.from('open_lab_slots').select('*'),
         supabase.from('sa_lab_permissions').select('*'),
+        supabase.from('sa_assignments').select('*').eq('is_active', true),
+        supabase.from('sa_assignment_history').select('*').order('changed_at', { ascending: false }),
+        supabase.from('teacher_lab_reports').select('*').order('submitted_at', { ascending: false }),
+        supabase.from('notifications').select('*').order('created_at', { ascending: false }),
       ]);
 
       const dbUsers = (profilesRes.data || []).map(mapProfile);
 
       // Fallback demo accounts so login always works, even with an empty DB
       const DEMO_USERS: User[] = [
-        { id: 'u1', name: 'John Doe', email: 'john@fsuu.edu', role: 'student', schoolId: '2021-0452', birthday: '01152003' },
-        { id: 'u2', name: 'Maria Santos', email: 'maria@fsuu.edu', role: 'student', schoolId: '2022-0101', birthday: '03221004' },
-        { id: 'u3', name: 'Dr. Jane Doe', email: 'jane@fsuu.edu', role: 'teacher', schoolId: '2015-0010', birthday: '06101980' },
-        { id: 'u4', name: 'Prof. Arts', email: 'arts@fsuu.edu', role: 'teacher', schoolId: '2014-0005', birthday: '09051975' },
-        { id: 'u5', name: 'Alex Brown', email: 'alex@fsuu.edu', role: 'sa', schoolId: '2020-0300', birthday: '11202001' },
-        { id: 'u6', name: 'Admin User', email: 'admin@fsuu.edu', role: 'admin', schoolId: 'ADMIN-001', birthday: '01011990' },
+        { id: '11111111-1111-1111-1111-111111111111', name: 'John Doe', email: 'john@fsuu.edu', role: 'student', schoolId: '2021-0452', birthday: '01152003' },
+        { id: '22222222-2222-2222-2222-222222222222', name: 'Maria Santos', email: 'maria@fsuu.edu', role: 'student', schoolId: '2022-0101', birthday: '03221004' },
+        { id: '33333333-3333-3333-3333-333333333333', name: 'Dr. Jane Doe', email: 'jane@fsuu.edu', role: 'teacher', schoolId: '2015-0010', birthday: '06101980' },
+        { id: '44444444-4444-4444-4444-444444444444', name: 'Prof. Arts', email: 'arts@fsuu.edu', role: 'teacher', schoolId: '2014-0005', birthday: '09051975' },
+        { id: '55555555-5555-5555-5555-555555555555', name: 'Alex Brown', email: 'alex@fsuu.edu', role: 'sa', schoolId: '2020-0300', birthday: '11202001' },
+        { id: '66666666-6666-6666-6666-666666666666', name: 'Admin User', email: 'admin@fsuu.edu', role: 'admin', schoolId: 'ADMIN-001', birthday: '01011990' },
       ];
 
       // Merge: DB users first, then add demo users whose schoolId doesn't overlap
@@ -250,6 +283,25 @@ export const useAppStore = create<AppState>((set, get) => ({
         id: r.id, userId: r.user_id, userName: r.user_name, userRole: r.user_role,
         labId: r.lab_id, enteredAt: r.entered_at, leftAt: r.left_at, duration: r.duration,
       }));
+      const dbAssignments: SAAssignment[] = (saAssignRes.data || []).map((r: any) => ({
+        id: r.id, saId: r.sa_id, saName: r.sa_name, labIds: r.lab_ids || [],
+        assignedBy: r.assigned_by || '', assignedAt: r.assigned_at, isActive: r.is_active,
+      }));
+      const dbHistory: SAAssignmentHistory[] = (saHistoryRes.data || []).map((r: any) => ({
+        id: r.id, saId: r.sa_id, saName: r.sa_name, labIds: r.lab_ids || [],
+        action: r.action, changedBy: r.changed_by || '', changedAt: r.changed_at,
+      }));
+      const dbTeacherReports: TeacherLabReport[] = (teacherReportsRes.data || []).map((r: any) => ({
+        id: r.id, teacherId: r.teacher_id, teacherName: r.teacher_name,
+        labId: r.lab_id, labName: r.lab_name, title: r.title,
+        description: r.description || '', saId: r.sa_id, saName: r.sa_name,
+        submittedAt: r.submitted_at,
+      }));
+      const dbNotifications: AppNotification[] = (notificationsRes.data || []).map((r: any) => ({
+        id: r.id, userId: r.user_id, title: r.title, message: r.message,
+        type: r.type, isRead: r.is_read, relatedTicketId: r.related_ticket_id,
+        createdAt: r.created_at,
+      }));
 
       set({
         users: allUsers,
@@ -264,6 +316,10 @@ export const useAppStore = create<AppState>((set, get) => ({
         openLabSlots: dbSlots,
         saLabPermissions: dbPerms,
         labVisits: dbVisits,
+        saAssignments: dbAssignments,
+        saAssignmentHistory: dbHistory,
+        teacherLabReports: dbTeacherReports,
+        notifications: dbNotifications,
         initialized: true,
         isLoading: false,
       });
@@ -275,12 +331,9 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   // ── User ──
   addUser: async (u) => {
-    const localId = uid();
-    // Insert into Supabase profiles
     const { data, error } = await supabase.from('profiles').insert({
-      id: localId,
       school_id: u.schoolId,
-      full_name: u.name.split(' ')[0] || u.name,
+      full_name: u.name.split(' ')[0],
       last_name: u.name.split(' ').slice(1).join(' ') || '',
       birthday: u.birthday
         ? `${u.birthday.slice(4)}-${u.birthday.slice(0, 2)}-${u.birthday.slice(2, 4)}`
@@ -288,13 +341,25 @@ export const useAppStore = create<AppState>((set, get) => ({
       role: u.role,
     }).select().single();
 
-    const id = data?.id || localId;
+    if (error || !data) {
+      console.error('Failed to create account:', error);
+      return '';
+    }
+
+    const id = data.id;
     set((s) => ({ users: [...s.users, { ...u, id }] }));
     return id;
   },
 
-  updateUser: (id, data) =>
-    set((s) => ({ users: s.users.map((u) => (u.id === id ? { ...u, ...data } : u)) })),
+  updateUser: async (id, data) => {
+    const dbUpdate: any = {};
+    if (data.name) { dbUpdate.full_name = data.name.split(' ')[0]; dbUpdate.last_name = data.name.split(' ').slice(1).join(' '); }
+    if (data.role) dbUpdate.role = data.role;
+    if (data.schoolId) dbUpdate.school_id = data.schoolId;
+    if (data.birthday) dbUpdate.birthday = `${data.birthday.slice(4)}-${data.birthday.slice(0,2)}-${data.birthday.slice(2,4)}`;
+    if (Object.keys(dbUpdate).length > 0) await supabase.from('profiles').update(dbUpdate).eq('id', id);
+    set((s) => ({ users: s.users.map((u) => (u.id === id ? { ...u, ...data } : u)) }));
+  },
 
   deleteUser: async (id) => {
     await supabase.from('profiles').delete().eq('id', id);
@@ -319,18 +384,29 @@ export const useAppStore = create<AppState>((set, get) => ({
     return id;
   },
 
-  updateEquipment: (id, data) =>
-    set((s) => ({ equipment: s.equipment.map((e) => (e.id === id ? { ...e, ...data } : e)) })),
+  updateEquipment: async (id, data) => {
+    const dbUpdate: any = {};
+    if (data.name) dbUpdate.name = data.name;
+    if (data.category) dbUpdate.description = data.category;
+    if (data.status) dbUpdate.status = data.status === 'in-use' ? 'loaned' : data.status;
+    if (Object.keys(dbUpdate).length > 0) await supabase.from('inventory').update(dbUpdate).eq('id', id);
+    set((s) => ({ equipment: s.equipment.map((e) => (e.id === id ? { ...e, ...data } : e)) }));
+  },
 
-  deleteEquipment: (id) =>
+  deleteEquipment: async (id) => {
+    await supabase.from('inventory').delete().eq('id', id);
     set((s) => ({
       equipment: s.equipment.filter((e) => e.id !== id),
       bookings: s.bookings.filter((b) => b.equipmentId !== id),
-    })),
+    }));
+  },
 
   // ── Bookings ──
   createBooking: async (userId, equipmentId, dueDate) => {
-    const id = uid();
+    const { data } = await supabase.from('bookings').insert({
+      user_id: userId, equipment_id: equipmentId, status: 'pending', due_date: dueDate,
+    }).select().single();
+    const id = data?.id || uid();
     set((s) => ({
       bookings: [
         ...s.bookings,
@@ -340,7 +416,8 @@ export const useAppStore = create<AppState>((set, get) => ({
     return id;
   },
 
-  updateBookingStatus: (id, status) =>
+  updateBookingStatus: async (id, status) => {
+    await supabase.from('bookings').update({ status }).eq('id', id);
     set((s) => {
       const booking = s.bookings.find((b) => b.id === id);
       if (!booking) return {};
@@ -352,14 +429,17 @@ export const useAppStore = create<AppState>((set, get) => ({
         newEquipment = s.equipment.map((e) =>
           e.id === booking.equipmentId ? { ...e, status: 'in-use' as EquipmentStatus, assignedTo: booking.userId } : e
         );
+        supabase.from('inventory').update({ status: 'loaned' }).eq('id', booking.equipmentId).then();
       } else if (status === 'completed' || status === 'denied') {
         newEquipment = s.equipment.map((e) =>
           e.id === booking.equipmentId ? { ...e, status: 'available' as EquipmentStatus, assignedTo: null } : e
         );
+        supabase.from('inventory').update({ status: 'available' }).eq('id', booking.equipmentId).then();
       }
 
       return { bookings: newBookings, equipment: newEquipment };
-    }),
+    });
+  },
 
   // ── Tickets ──
   createTicket: async (ticket) => {
@@ -428,8 +508,13 @@ export const useAppStore = create<AppState>((set, get) => ({
   },
 
   // ── Labs ──
-  updateLab: (id, data) =>
-    set((s) => ({ labs: s.labs.map((l) => (l.id === id ? { ...l, ...data } : l)) })),
+  updateLab: async (id, data) => {
+    const dbUpdate: any = {};
+    if (data.name) dbUpdate.name = data.name;
+    if (data.status) dbUpdate.status = data.status;
+    if (Object.keys(dbUpdate).length > 0) await supabase.from('laboratories').update(dbUpdate).eq('id', id);
+    set((s) => ({ labs: s.labs.map((l) => (l.id === id ? { ...l, ...data } : l)) }));
+  },
 
   // ── Schedules ──
   addSchedule: async (s_) => {
@@ -447,8 +532,16 @@ export const useAppStore = create<AppState>((set, get) => ({
     return id;
   },
 
-  updateSchedule: (id, data) =>
-    set((s) => ({ schedules: s.schedules.map((sc) => (sc.id === id ? { ...sc, ...data } : sc)) })),
+  updateSchedule: async (id, data) => {
+    const dbUpdate: any = {};
+    if (data.subject) dbUpdate.subject = data.subject;
+    if (data.time) dbUpdate.time_slot = data.time;
+    if (data.lab) dbUpdate.lab = data.lab;
+    if (data.day) dbUpdate.day = data.day;
+    if (data.status) dbUpdate.status = data.status;
+    if (Object.keys(dbUpdate).length > 0) await supabase.from('class_schedules').update(dbUpdate).eq('id', id);
+    set((s) => ({ schedules: s.schedules.map((sc) => (sc.id === id ? { ...sc, ...data } : sc)) }));
+  },
 
   deleteSchedule: async (id) => {
     await supabase.from('class_schedules').delete().eq('id', id);
@@ -534,5 +627,80 @@ export const useAppStore = create<AppState>((set, get) => ({
   },
   getActiveVisit: (userId, labId) => {
     return get().labVisits.find((v) => v.userId === userId && v.labId === labId && !v.leftAt);
+  },
+
+  // ── SA Assignments (Supabase-backed) ──
+  assignSA: async (saId, saName, labIds, adminId) => {
+    // Deactivate any existing assignment for this SA
+    await supabase.from('sa_assignments').update({ is_active: false }).eq('sa_id', saId);
+
+    // Create new active assignment
+    const { data } = await supabase.from('sa_assignments').insert({
+      sa_id: saId, sa_name: saName, lab_ids: labIds, assigned_by: adminId, is_active: true,
+    }).select().single();
+
+    // Log history
+    await supabase.from('sa_assignment_history').insert({
+      sa_id: saId, sa_name: saName, lab_ids: labIds, action: 'assigned', changed_by: adminId,
+    });
+
+    const newAssignment: SAAssignment = {
+      id: data?.id || uid(), saId, saName, labIds, assignedBy: adminId,
+      assignedAt: new Date().toISOString(), isActive: true,
+    };
+    const historyEntry: SAAssignmentHistory = {
+      id: uid(), saId, saName, labIds, action: 'assigned', changedBy: adminId,
+      changedAt: new Date().toISOString(),
+    };
+
+    set((s) => ({
+      saAssignments: [...s.saAssignments.filter((a) => a.saId !== saId), newAssignment],
+      saAssignmentHistory: [historyEntry, ...s.saAssignmentHistory],
+    }));
+  },
+
+  removeSAAssignment: async (saId, adminId) => {
+    const existing = get().saAssignments.find((a) => a.saId === saId);
+    await supabase.from('sa_assignments').update({ is_active: false }).eq('sa_id', saId);
+    await supabase.from('sa_assignment_history').insert({
+      sa_id: saId, sa_name: existing?.saName || '', lab_ids: existing?.labIds || [],
+      action: 'removed', changed_by: adminId,
+    });
+
+    const historyEntry: SAAssignmentHistory = {
+      id: uid(), saId, saName: existing?.saName || '', labIds: existing?.labIds || [],
+      action: 'removed', changedBy: adminId, changedAt: new Date().toISOString(),
+    };
+
+    set((s) => ({
+      saAssignments: s.saAssignments.filter((a) => a.saId !== saId),
+      saAssignmentHistory: [historyEntry, ...s.saAssignmentHistory],
+    }));
+  },
+
+  getSAForLab: (labId) => {
+    return get().saAssignments.find((a) => a.isActive && a.labIds.includes(labId));
+  },
+
+  // ── Teacher Lab Reports (Supabase-backed) ──
+  submitTeacherLabReport: async (report) => {
+    // Auto-detect the SA on duty for this lab
+    const saOnDuty = get().saAssignments.find((a) => a.isActive && a.labIds.includes(report.labId));
+
+    const { data } = await supabase.from('teacher_lab_reports').insert({
+      teacher_id: report.teacherId, teacher_name: report.teacherName,
+      lab_id: report.labId, lab_name: report.labName,
+      title: report.title, description: report.description,
+      sa_id: saOnDuty?.saId || null, sa_name: saOnDuty?.saName || null,
+    }).select().single();
+
+    const id = data?.id || uid();
+    const newReport: TeacherLabReport = {
+      ...report, id, saId: saOnDuty?.saId || null, saName: saOnDuty?.saName || null,
+      submittedAt: new Date().toISOString(),
+    };
+
+    set((s) => ({ teacherLabReports: [newReport, ...s.teacherLabReports] }));
+    return id;
   },
 }));

@@ -136,3 +136,47 @@ export interface LabVisit {
   leftAt: string | null;
   duration: number | null; // minutes
 }
+
+export interface SAAssignment {
+  id: string;
+  saId: string;
+  saName: string;
+  labIds: number[];
+  assignedBy: string;
+  assignedAt: string;
+  isActive: boolean;
+}
+
+export interface SAAssignmentHistory {
+  id: string;
+  saId: string;
+  saName: string;
+  labIds: number[];
+  action: string;
+  changedBy: string;
+  changedAt: string;
+}
+
+export interface TeacherLabReport {
+  id: string;
+  teacherId: string;
+  teacherName: string;
+  labId: number;
+  labName: string;
+  title: string;
+  description: string;
+  saId: string | null;
+  saName: string | null;
+  submittedAt: string;
+}
+
+export interface AppNotification {
+  id: string;
+  userId: string;
+  title: string;
+  message: string;
+  type: 'info' | 'success' | 'warning' | 'resolved';
+  isRead: boolean;
+  relatedTicketId: string | null;
+  createdAt: string;
+}

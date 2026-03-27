@@ -19,6 +19,7 @@ export default function TicketQueue() {
   const updateTicketStatus = useAppStore((s) => s.updateTicketStatus);
   const updateBookingStatus = useAppStore((s) => s.updateBookingStatus);
   const role = currentUser?.role;
+  const saAssignments = useAppStore((s) => s.saAssignments);
   const canUpdateTicket = hasPermission(role, 'ticket:update');
   const canApproveBooking = hasPermission(role, 'booking:approve');
 
@@ -28,6 +29,7 @@ export default function TicketQueue() {
 
   const pendingBookings = bookings.filter((b) => b.status === 'pending');
   const filteredTickets = tickets.filter((t) => t.title.toLowerCase().includes(search.toLowerCase()) || t.lab.toLowerCase().includes(search.toLowerCase()));
+
 
   const handleResolve = (id: string, title: string) => {
     if (!canUpdateTicket) { toast.error('Unauthorized.'); return; }
