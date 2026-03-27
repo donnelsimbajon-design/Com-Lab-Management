@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useAuthStore } from '@/lib/auth-store';
 import { AuthGuard } from '@/components/auth-guard';
-import { LayoutDashboard, Monitor, Calendar, AlertCircle, Bot, LogOut, Shield } from 'lucide-react';
+import { LayoutDashboard, Monitor, Calendar, AlertCircle, DoorOpen, Bot, LogOut, Shield } from 'lucide-react';
 
 function StudentLayoutInner({ children }: { children: React.ReactNode }) {
   const router = useRouter();
@@ -19,6 +19,7 @@ function StudentLayoutInner({ children }: { children: React.ReactNode }) {
 
   const navigation = [
     { name: 'Dashboard', href: '/student/dashboard', icon: LayoutDashboard },
+    { name: 'Open Laboratory', href: '/student/open-lab', icon: DoorOpen },
     { name: 'Equipment Catalog', href: '/student/equipment', icon: Monitor },
     { name: 'My Bookings', href: '/student/bookings', icon: Calendar },
     { name: 'Lost & Found', href: '/student/lost-found', icon: AlertCircle },

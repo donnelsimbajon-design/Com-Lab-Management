@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useAuthStore } from '@/lib/auth-store';
 import { AuthGuard } from '@/components/auth-guard';
-import { LayoutDashboard, Package, AlertTriangle, LogIn, Bot, LogOut, Shield } from 'lucide-react';
+import { LayoutDashboard, Package, AlertTriangle, LogIn, DoorOpen, Bot, LogOut, Shield } from 'lucide-react';
 
 function SALayoutInner({ children }: { children: React.ReactNode }) {
   const router = useRouter();
@@ -19,6 +19,7 @@ function SALayoutInner({ children }: { children: React.ReactNode }) {
 
   const navigation = [
     { name: 'Dashboard', href: '/sa/dashboard', icon: LayoutDashboard },
+    { name: 'Open Lab Schedule', href: '/sa/open-lab', icon: DoorOpen },
     { name: 'Inventory Management', href: '/sa/inventory', icon: Package },
     { name: 'Ticket Queue', href: '/sa/tickets', icon: AlertTriangle },
     { name: 'Booking Requests', href: '/sa/bookings', icon: LogIn },

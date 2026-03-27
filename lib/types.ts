@@ -112,3 +112,27 @@ export interface SystemSetting {
   category: string;
   updatedAt: string;
 }
+
+export interface OpenLabSlot {
+  id: string;
+  labId: number;
+  day: string; // e.g. 'Monday', 'Tuesday'
+  startTime: string; // e.g. '08:00'
+  endTime: string;   // e.g. '17:00'
+}
+
+export interface SALabPermission {
+  saId: string;
+  labIds: number[];
+}
+
+export interface LabVisit {
+  id: string;
+  userId: string;
+  userName: string;
+  userRole: string;
+  labId: number;
+  enteredAt: string; // ISO timestamp
+  leftAt: string | null;
+  duration: number | null; // minutes
+}

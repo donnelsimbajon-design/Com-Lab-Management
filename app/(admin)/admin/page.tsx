@@ -24,6 +24,8 @@ export default function AdminDashboard() {
   const addEquipment = useAppStore((s) => s.addEquipment);
   const deleteEquipment = useAppStore((s) => s.deleteEquipment);
   const updateSoftwareRequestStatus = useAppStore((s) => s.updateSoftwareRequestStatus);
+  const saLabPermissions = useAppStore((s) => s.saLabPermissions);
+  const updateSALabPermission = useAppStore((s) => s.updateSALabPermission);
   const auditLogs = useAuditStore((s) => s.logs);
 
   const role = currentUser?.role;
@@ -285,6 +287,66 @@ export default function AdminDashboard() {
             </div>
           </div>
         </div>
+      </div>
+
+      {/* SA Lab Permissions */}
+      <div className="bg-[#f8fafc] border border-gray-100 rounded-[2rem] p-8 shadow-sm">
+        <div className="flex items-center justify-between mb-6">
+          <div>
+            <h2 className="text-sm font-bold text-gray-900">SA Lab Permissions</h2>
+            <p className="text-[10px] text-gray-500 font-medium mt-1">Grant which Student Assistants can manage Open Lab schedules for each laboratory.</p>
+          </div>
+        </div>
+        {(() => {
+          const saUsers = users.filter((u) => u.role === 'sa');
+          if (saUsers.length === 0) return <p className="text-sm text-gray-400 text-center py-8">No Student Assistants registered.</p>;
+          return (
+            <div className="space-y-4">
+              {saUsers.map((sa) => {
+                const perm = saLabPermissions.find((p) => p.saId === sa.id);
+                const currentLabs = perm?.labIds || [];
+                return (
+                  <div key={sa.id} className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm">
+                    <div className="flex items-center gap-3 mb-4">
+                      <div className="h-9 w-9 rounded-full bg-emerald-100 text-emerald-700 font-bold flex items-center justify-center text-xs">
+                        {sa.name.split(' ').map((n) => n[0]).join('')}
+                      </div>
+                      <div>
+                        <p className="text-sm font-bold text-gray-900">{sa.name}</p>
+                        <p className="text-[10px] text-gray-500 font-medium">{sa.schoolId}</p>
+                      </div>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      {Array.from({ length: 9 }, (_, i) => i + 1).map((labId) => {
+                        const isGranted = currentLabs.includes(labId);
+                        return (
+                          <button
+                            key={labId}
+                            onClick={() => {
+                              const newLabs = isGranted
+                                ? currentLabs.filter((l) => l !== labId)
+                                : [...currentLabs, labId];
+                              updateSALabPermission(sa.id, newLabs);
+                              toast.success(`Lab ${labId} ${isGranted ? 'revoked from' : 'granted to'} ${sa.name}`);
+                              logAudit('SETTING_UPDATED', currentUser?.id || '', currentUser?.name || '', role || '', `SA ${sa.name} Lab ${labId} permission ${isGranted ? 'revoked' : 'granted'}`);
+                            }}
+                            className={`px-3 py-1.5 rounded-lg text-xs font-bold border transition-all ${
+                              isGranted
+                                ? 'bg-emerald-50 text-emerald-700 border-emerald-200 shadow-sm'
+                                : 'bg-gray-50 text-gray-400 border-gray-100 hover:border-emerald-300 hover:text-emerald-600'
+                            }`}
+                          >
+                            Lab {labId} {isGranted ? '✓' : ''}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          );
+        })()}
       </div>
     </div>
   );

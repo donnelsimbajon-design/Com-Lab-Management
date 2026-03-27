@@ -10,6 +10,8 @@ import { Search, MapPin, AlertTriangle, Send, Clock, CheckCircle2 } from 'lucide
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 
+const LABORATORIES = Array.from({ length: 9 }, (_, i) => `Laboratory ${i + 1}`);
+
 export default function LostFound() {
   const currentUser = useAuthStore((s) => s.currentUser);
   const tickets = useAppStore((s) => s.tickets);
@@ -28,10 +30,10 @@ export default function LostFound() {
 
   const handleSubmit = () => {
     if (containsScriptInjection(title) || containsScriptInjection(desc)) { toast.error('Invalid input.'); return; }
-    const safeTitle = sanitizeInput(title); const safeDesc = sanitizeInput(desc); const safeLab = sanitizeInput(lab);
+    const safeTitle = sanitizeInput(title); const safeDesc = sanitizeInput(desc);
     if (!safeTitle || safeTitle.length < 3) { toast.error('Title must be at least 3 characters.'); return; }
-    if (!safeLab) { toast.error('Specify the location.'); return; }
-    createTicket({ userId, type: 'lost-item', title: safeTitle, description: safeDesc || 'No details.', status: 'open', priority: 'medium', lab: safeLab });
+    if (!lab) { toast.error('Select the laboratory location.'); return; }
+    createTicket({ userId, type: 'lost-item', title: safeTitle, description: safeDesc || 'No details.', status: 'open', priority: 'medium', lab });
     logAudit('TICKET_CREATED', userId, currentUser?.name || '', currentUser?.role || '', `Lost item: ${safeTitle}`);
     toast.success('Lost item reported!');
     setTitle(''); setDesc(''); setLab(''); setShowForm(false);
@@ -50,7 +52,22 @@ export default function LostFound() {
           <h3 className="font-bold text-sm text-gray-900">Report a Lost Item</h3>
           <Input placeholder="What did you lose?" value={title} onChange={(e) => setTitle(e.target.value)} className="rounded-xl" />
           <Input placeholder="Description (color, brand)" value={desc} onChange={(e) => setDesc(e.target.value)} className="rounded-xl" />
-          <Input placeholder="Last seen location" value={lab} onChange={(e) => setLab(e.target.value)} className="rounded-xl" />
+          
+          {/* Lab location dropdown */}
+          <div className="space-y-1.5">
+            <label className="text-xs font-bold text-gray-700 uppercase tracking-widest">Last Seen Location</label>
+            <select
+              value={lab}
+              onChange={(e) => setLab(e.target.value)}
+              className="h-11 w-full px-4 rounded-xl border border-gray-200 text-sm font-medium bg-white focus:ring-2 focus:ring-blue-500 outline-none"
+            >
+              <option value="">Select Laboratory...</option>
+              {LABORATORIES.map((l) => (
+                <option key={l} value={l}>{l}</option>
+              ))}
+            </select>
+          </div>
+
           <div className="flex gap-3">
             <Button onClick={handleSubmit} className="bg-[#164ac9] text-white rounded-xl font-bold"><Send className="h-4 w-4 mr-2" /> Submit</Button>
             <Button variant="outline" onClick={() => setShowForm(false)} className="rounded-xl">Cancel</Button>

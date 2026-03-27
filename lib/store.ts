@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import {
   User, Equipment, Booking, Ticket, SoftwareRequest, Report, Lab, Schedule, SystemSetting,
+  OpenLabSlot, SALabPermission, LabVisit,
   BookingStatus, TicketStatus, EquipmentStatus, SoftwareRequestStatus,
 } from './types';
 import { supabase } from './supabase';
@@ -20,6 +21,9 @@ export interface AppState {
   labs: Lab[];
   schedules: Schedule[];
   settings: SystemSetting[];
+  openLabSlots: OpenLabSlot[];
+  saLabPermissions: SALabPermission[];
+  labVisits: LabVisit[];
 
   // Loading & Init
   isLoading: boolean;
@@ -62,6 +66,19 @@ export interface AppState {
 
   // ── Settings Mutations ──
   updateSetting: (id: string, value: string) => Promise<void>;
+
+  // ── Open Lab Slots ──
+  addOpenLabSlot: (slot: Omit<OpenLabSlot, 'id'>) => string;
+  updateOpenLabSlot: (id: string, data: Partial<OpenLabSlot>) => void;
+  deleteOpenLabSlot: (id: string) => void;
+
+  // ── SA Lab Permissions ──
+  updateSALabPermission: (saId: string, labIds: number[]) => void;
+
+  // ── Lab Visits ──
+  enterLab: (userId: string, userName: string, userRole: string, labId: number) => string;
+  leaveLab: (visitId: string) => void;
+  getActiveVisit: (userId: string, labId: number) => LabVisit | undefined;
 }
 
 // ── Mapper helpers: DB row → App type ──
@@ -166,6 +183,9 @@ export const useAppStore = create<AppState>((set, get) => ({
   labs: [],
   schedules: [],
   settings: [],
+  openLabSlots: [],
+  saLabPermissions: [],
+  labVisits: [],
   isLoading: false,
   initialized: false,
 
@@ -185,6 +205,9 @@ export const useAppStore = create<AppState>((set, get) => ({
         reportsRes,
         schedulesRes,
         settingsRes,
+        labVisitsRes,
+        openLabSlotsRes,
+        saLabPermsRes,
       ] = await Promise.all([
         supabase.from('profiles').select('*'),
         supabase.from('inventory').select('*'),
@@ -194,6 +217,9 @@ export const useAppStore = create<AppState>((set, get) => ({
         supabase.from('lab_reports').select('*').order('created_at', { ascending: false }),
         supabase.from('class_schedules').select('*'),
         supabase.from('system_settings').select('*'),
+        supabase.from('lab_visits').select('*').order('entered_at', { ascending: false }),
+        supabase.from('open_lab_slots').select('*'),
+        supabase.from('sa_lab_permissions').select('*'),
       ]);
 
       const dbUsers = (profilesRes.data || []).map(mapProfile);
@@ -213,6 +239,18 @@ export const useAppStore = create<AppState>((set, get) => ({
       const fallbackUsers = DEMO_USERS.filter((d) => !existingIds.has(d.schoolId));
       const allUsers = [...dbUsers, ...fallbackUsers];
 
+      // Map DB rows to app types
+      const dbSlots: OpenLabSlot[] = (openLabSlotsRes.data || []).map((r: any) => ({
+        id: r.id, labId: r.lab_id, day: r.day, startTime: r.start_time, endTime: r.end_time,
+      }));
+      const dbPerms: SALabPermission[] = (saLabPermsRes.data || []).map((r: any) => ({
+        saId: r.sa_id, labIds: r.lab_ids || [],
+      }));
+      const dbVisits: LabVisit[] = (labVisitsRes.data || []).map((r: any) => ({
+        id: r.id, userId: r.user_id, userName: r.user_name, userRole: r.user_role,
+        labId: r.lab_id, enteredAt: r.entered_at, leftAt: r.left_at, duration: r.duration,
+      }));
+
       set({
         users: allUsers,
         equipment: (inventoryRes.data || []).map(mapInventory),
@@ -222,7 +260,10 @@ export const useAppStore = create<AppState>((set, get) => ({
         reports: (reportsRes.data || []).map(mapReport),
         schedules: (schedulesRes.data || []).map(mapSchedule),
         settings: (settingsRes.data || []).map(mapSetting),
-        bookings: [], // Bookings use a different schema; loaded separately if needed
+        bookings: [],
+        openLabSlots: dbSlots,
+        saLabPermissions: dbPerms,
+        labVisits: dbVisits,
         initialized: true,
         isLoading: false,
       });
@@ -423,5 +464,75 @@ export const useAppStore = create<AppState>((set, get) => ({
     set((s) => ({
       settings: s.settings.map((st) => (st.id === id ? { ...st, value, updatedAt: new Date().toISOString().split('T')[0] } : st)),
     }));
+  },
+
+  // ── Open Lab Slots (Supabase-backed) ──
+  addOpenLabSlot: (slot) => {
+    const id = uid();
+    // Persist to Supabase
+    supabase.from('open_lab_slots').insert({
+      id, lab_id: slot.labId, day: slot.day, start_time: slot.startTime, end_time: slot.endTime,
+    }).then();
+    set((s) => ({ openLabSlots: [...s.openLabSlots, { ...slot, id }] }));
+    return id;
+  },
+  updateOpenLabSlot: (id, data) => {
+    const dbUpdate: any = {};
+    if (data.day) dbUpdate.day = data.day;
+    if (data.startTime) dbUpdate.start_time = data.startTime;
+    if (data.endTime) dbUpdate.end_time = data.endTime;
+    if (data.labId) dbUpdate.lab_id = data.labId;
+    supabase.from('open_lab_slots').update(dbUpdate).eq('id', id).then();
+    set((s) => ({ openLabSlots: s.openLabSlots.map((sl) => (sl.id === id ? { ...sl, ...data } : sl)) }));
+  },
+  deleteOpenLabSlot: (id) => {
+    supabase.from('open_lab_slots').delete().eq('id', id).then();
+    set((s) => ({ openLabSlots: s.openLabSlots.filter((sl) => sl.id !== id) }));
+  },
+
+  // ── SA Lab Permissions (Supabase-backed) ──
+  updateSALabPermission: (saId, labIds) => {
+    // Upsert to Supabase
+    supabase.from('sa_lab_permissions').upsert(
+      { sa_id: saId, lab_ids: labIds },
+      { onConflict: 'sa_id' }
+    ).then();
+    set((s) => {
+      const existing = s.saLabPermissions.find((p) => p.saId === saId);
+      if (existing) {
+        return { saLabPermissions: s.saLabPermissions.map((p) => (p.saId === saId ? { ...p, labIds } : p)) };
+      }
+      return { saLabPermissions: [...s.saLabPermissions, { saId, labIds }] };
+    });
+  },
+
+  // ── Lab Visits (Supabase-backed) ──
+  enterLab: (userId, userName, userRole, labId) => {
+    const id = uid();
+    const enteredAt = new Date().toISOString();
+    const visit: LabVisit = { id, userId, userName, userRole, labId, enteredAt, leftAt: null, duration: null };
+    // Persist to Supabase
+    supabase.from('lab_visits').insert({
+      id, user_id: userId, user_name: userName, user_role: userRole,
+      lab_id: labId, entered_at: enteredAt,
+    }).then();
+    set((s) => ({ labVisits: [visit, ...s.labVisits] }));
+    return id;
+  },
+  leaveLab: (visitId) => {
+    const visit = get().labVisits.find((v) => v.id === visitId);
+    if (!visit || visit.leftAt) return;
+    const leftAt = new Date().toISOString();
+    const duration = Math.round((new Date(leftAt).getTime() - new Date(visit.enteredAt).getTime()) / 60000);
+    // Persist to Supabase
+    supabase.from('lab_visits').update({ left_at: leftAt, duration }).eq('id', visitId).then();
+    set((s) => ({
+      labVisits: s.labVisits.map((v) =>
+        v.id === visitId ? { ...v, leftAt, duration } : v
+      ),
+    }));
+  },
+  getActiveVisit: (userId, labId) => {
+    return get().labVisits.find((v) => v.userId === userId && v.labId === labId && !v.leftAt);
   },
 }));
